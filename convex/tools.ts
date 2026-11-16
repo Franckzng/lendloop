@@ -6,6 +6,8 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { todayUtc } from "./dates";
+import { notifyStatusChange } from "./notifications";
 import {
   categoryValidator,
   conditionValidator,
@@ -49,25 +51,46 @@ function validateTool(input: ToolInput): ToolInput {
   return { ...input, name, description };
 }
 
-/** Today's calendar day in UTC, in the same "YYYY-MM-DD" format as loans. */
-function todayUtc(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+type Booking = { startDate: string; endDate: string };
+
+type Availability = {
+  /** False while the tool is out: started, approved, and not returned yet. */
+  available: boolean;
+  /** Approved loans that are current or upcoming, soonest first. */
+  bookings: Booking[];
+};
 
 /**
- * Tools that are currently out: an approved loan has started and the tool
- * has not been marked as returned yet (this includes overdue loans).
+ * Availability of every tool that has an approved loan. A tool counts as out
+ * from the start date until it is marked as returned, overdue loans included.
  */
-async function toolIdsOnLoan(ctx: QueryCtx): Promise<Set<Id<"tools">>> {
+async function loadAvailability(
+  ctx: QueryCtx,
+): Promise<Map<Id<"tools">, Availability>> {
   const today = todayUtc();
   const approved = await ctx.db
     .query("loans")
     .withIndex("by_status_end", (q) => q.eq("status", "approved"))
     .collect();
-  return new Set(
-    approved.filter((loan) => loan.startDate <= today).map((loan) => loan.toolId),
-  );
+
+  const byTool = new Map<Id<"tools">, Availability>();
+  for (const loan of approved) {
+    const entry = byTool.get(loan.toolId) ?? { available: true, bookings: [] };
+    if (loan.startDate <= today) {
+      entry.available = false;
+    }
+    if (loan.endDate >= today) {
+      entry.bookings.push({ startDate: loan.startDate, endDate: loan.endDate });
+    }
+    byTool.set(loan.toolId, entry);
+  }
+  for (const entry of byTool.values()) {
+    entry.bookings.sort((a, b) => a.startDate.localeCompare(b.startDate));
+  }
+  return byTool;
 }
+
+const NO_LOANS: Availability = { available: true, bookings: [] };
 
 /** Loads a tool and checks that the signed-in user owns it. */
 async function requireOwnedTool(
@@ -119,7 +142,7 @@ export const listAll = query({
             .order("desc")
             .take(MAX_LISTED_TOOLS);
 
-    const onLoan = await toolIdsOnLoan(ctx);
+    const availability = await loadAvailability(ctx);
     const ownerIds = [...new Set(tools.map((tool) => tool.ownerId))];
     const owners = await Promise.all(
       ownerIds.map((ownerId) => ctx.db.get("users", ownerId)),
@@ -137,7 +160,8 @@ export const listAll = query({
       // The owner's name only: their email is never sent to other users.
       ownerName: ownerNames.get(tool.ownerId) ?? "Unknown",
       isMine: tool.ownerId === user._id,
-      available: !onLoan.has(tool._id),
+      // Dates only: who borrowed the tool is not shown to other users.
+      ...(availability.get(tool._id) ?? NO_LOANS),
     }));
   },
 });
@@ -152,7 +176,7 @@ export const myListings = query({
       .withIndex("by_owner", (q) => q.eq("ownerId", user._id))
       .order("desc")
       .take(MAX_LISTED_TOOLS);
-    const onLoan = await toolIdsOnLoan(ctx);
+    const availability = await loadAvailability(ctx);
 
     return tools.map((tool) => ({
       _id: tool._id,
@@ -160,7 +184,7 @@ export const myListings = query({
       category: tool.category,
       condition: tool.condition,
       description: tool.description,
-      available: !onLoan.has(tool._id),
+      available: (availability.get(tool._id) ?? NO_LOANS).available,
     }));
   },
 });
@@ -201,11 +225,10 @@ export const remove = mutation({
     }
     // Requests still waiting for an answer cannot be fulfilled any more.
     const pending = loans.filter((loan) => loan.status === "pending");
-    await Promise.all(
-      pending.map((loan) =>
-        ctx.db.patch("loans", loan._id, { status: "declined" }),
-      ),
-    );
+    for (const loan of pending) {
+      await ctx.db.patch("loans", loan._id, { status: "declined" });
+      await notifyStatusChange(ctx, loan._id);
+    }
     await ctx.db.delete("tools", tool._id);
   },
 });

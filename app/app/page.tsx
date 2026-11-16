@@ -4,6 +4,8 @@ import { UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import Link from "next/link";
 import { useState } from "react";
+import { IncomingRequests } from "@/components/loans/IncomingRequests";
+import { MyRequests } from "@/components/loans/MyRequests";
 import { AllTools } from "@/components/tools/AllTools";
 import { MyListings } from "@/components/tools/MyListings";
 import { api } from "@/convex/_generated/api";
@@ -11,9 +13,24 @@ import { api } from "@/convex/_generated/api";
 const TABS = [
   { id: "all", label: "All tools" },
   { id: "mine", label: "My listings" },
+  { id: "requests", label: "My requests" },
+  { id: "incoming", label: "Incoming requests" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+function TabContent({ tab }: { tab: TabId }) {
+  switch (tab) {
+    case "all":
+      return <AllTools />;
+    case "mine":
+      return <MyListings />;
+    case "requests":
+      return <MyRequests />;
+    case "incoming":
+      return <IncomingRequests />;
+  }
+}
 
 export default function AppPage() {
   // Null until the user record exists in Convex: the protected queries below
@@ -43,7 +60,7 @@ export default function AppPage() {
         <>
           <nav
             aria-label="Sections"
-            className="flex gap-1 border-b border-zinc-200"
+            className="flex gap-1 overflow-x-auto border-b border-zinc-200"
           >
             {TABS.map(({ id, label }) => (
               <button
@@ -51,7 +68,7 @@ export default function AppPage() {
                 type="button"
                 onClick={() => setTab(id)}
                 aria-current={tab === id ? "page" : undefined}
-                className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+                className={`-mb-px shrink-0 border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap ${
                   tab === id
                     ? "border-zinc-900 text-zinc-900"
                     : "border-transparent text-zinc-500 hover:text-zinc-900"
@@ -62,7 +79,9 @@ export default function AppPage() {
             ))}
           </nav>
 
-          <main>{tab === "all" ? <AllTools /> : <MyListings />}</main>
+          <main>
+            <TabContent tab={tab} />
+          </main>
         </>
       )}
     </div>

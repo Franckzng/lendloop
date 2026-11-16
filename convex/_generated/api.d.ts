@@ -8,6 +8,9 @@
  * @module
  */
 
+import type * as dates from "../dates.js";
+import type * as loans from "../loans.js";
+import type * as notifications from "../notifications.js";
 import type * as toolOptions from "../toolOptions.js";
 import type * as tools from "../tools.js";
 import type * as users from "../users.js";
@@ -19,6 +22,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  dates: typeof dates;
+  loans: typeof loans;
+  notifications: typeof notifications;
   toolOptions: typeof toolOptions;
   tools: typeof tools;
   users: typeof users;
