@@ -9,6 +9,9 @@ import {
 
 type Ctx = QueryCtx | MutationCtx;
 
+/** Display name for accounts created without a first or last name. */
+const DEFAULT_NAME = "Neighbour";
+
 async function findByClerkId(
   ctx: Ctx,
   clerkId: string,
@@ -61,12 +64,16 @@ export const store = mutation({
     if (!identity.email) {
       throw new ConvexError("Your account needs an email address.");
     }
-    const name = identity.name || identity.email;
+    // Never fall back to the email: the name is shown to other users.
+    const name = identity.name?.trim() || DEFAULT_NAME;
 
     const existing = await findByClerkId(ctx, identity.subject);
     if (existing !== null) {
       if (existing.name !== name || existing.email !== identity.email) {
-        await ctx.db.patch(existing._id, { name, email: identity.email });
+        await ctx.db.patch("users", existing._id, {
+          name,
+          email: identity.email,
+        });
       }
       return existing._id;
     }

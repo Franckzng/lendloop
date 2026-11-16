@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { categoryValidator, conditionValidator } from "./toolOptions";
 
 export const roleValidator = v.union(v.literal("admin"), v.literal("user"));
 
@@ -28,8 +29,8 @@ export default defineSchema({
   tools: defineTable({
     ownerId: v.id("users"),
     name: v.string(),
-    category: v.string(),
-    condition: v.string(),
+    category: categoryValidator,
+    condition: conditionValidator,
     description: v.string(),
   })
     .index("by_owner", ["ownerId"])

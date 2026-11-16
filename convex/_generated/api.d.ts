@@ -8,6 +8,8 @@
  * @module
  */
 
+import type * as toolOptions from "../toolOptions.js";
+import type * as tools from "../tools.js";
 import type * as users from "../users.js";
 
 import type {
@@ -17,6 +19,8 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  toolOptions: typeof toolOptions;
+  tools: typeof tools;
   users: typeof users;
 }>;
 

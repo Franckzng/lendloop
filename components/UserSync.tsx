@@ -1,16 +1,11 @@
 "use client";
 
 import { useConvexAuth, useMutation } from "convex/react";
-import { ConvexError } from "convex/values";
 import { useEffect, useState } from "react";
 import { api } from "@/convex/_generated/api";
+import { errorMessage } from "@/lib/errors";
 
-function toMessage(error: unknown): string {
-  if (error instanceof ConvexError && typeof error.data === "string") {
-    return error.data;
-  }
-  return "We could not set up your account. Please reload the page.";
-}
+const SETUP_FAILED = "We could not set up your account. Please reload the page.";
 
 /**
  * Creates (or refreshes) the Convex user record right after sign-in.
@@ -27,7 +22,7 @@ export function UserSync() {
     }
     storeUser().then(
       () => setError(null),
-      (cause: unknown) => setError(toMessage(cause)),
+      (cause: unknown) => setError(errorMessage(cause, SETUP_FAILED)),
     );
   }, [isAuthenticated, storeUser]);
 

@@ -1,8 +1,19 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
-// Makes the Clerk session available to the app. It protects no route by
-// itself: access rules are enforced inside the Convex functions.
-export default clerkMiddleware();
+const isAppRoute = createRouteMatcher(["/app(.*)"]);
+
+// Sends signed-out visitors of /app back to the public page. This is for
+// convenience only: access rules are enforced inside the Convex functions.
+export default clerkMiddleware(async (auth, request) => {
+  if (!isAppRoute(request)) {
+    return;
+  }
+  const { userId } = await auth();
+  if (userId === null) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+});
 
 export const config = {
   matcher: [
