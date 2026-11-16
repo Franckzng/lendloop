@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useState } from "react";
 import { RequestForm } from "@/components/loans/RequestForm";
+import { TrustedBadge } from "@/components/TrustedBadge";
 import { api } from "@/convex/_generated/api";
 import {
   isToolCategory,
@@ -34,8 +35,9 @@ function ToolCard({ tool }: { tool: Tool }) {
       {tool.description !== "" && (
         <p className="text-sm text-zinc-700">{tool.description}</p>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
         {tool.isMine ? "Your tool" : `Lent by ${tool.ownerName}`}
+        {tool.ownerTrusted && <TrustedBadge />}
       </p>
       {tool.bookings.length > 0 && (
         <p className="text-xs text-zinc-500">

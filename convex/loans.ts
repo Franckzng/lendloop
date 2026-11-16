@@ -187,7 +187,7 @@ async function loadNames(
   ]);
   return {
     toolNames: new Map(toolIds.map((id, index) => [id, tools[index]?.name])),
-    userNames: new Map(userIds.map((id, index) => [id, users[index]?.name])),
+    usersById: new Map(userIds.map((id, index) => [id, users[index]])),
   };
 }
 
@@ -213,7 +213,7 @@ export const myRequests = query({
       .withIndex("by_borrower", (q) => q.eq("borrowerId", user._id))
       .order("desc")
       .take(MAX_LISTED_LOANS);
-    const { toolNames, userNames } = await loadNames(
+    const { toolNames, usersById } = await loadNames(
       ctx,
       loans,
       (loan) => loan.ownerId,
@@ -224,7 +224,8 @@ export const myRequests = query({
     return loans.sort(byStatusThenNewest).map((loan) => ({
       _id: loan._id,
       toolName: toolNames.get(loan.toolId) ?? DELETED_TOOL_NAME,
-      ownerName: userNames.get(loan.ownerId) ?? "Unknown",
+      ownerName: usersById.get(loan.ownerId)?.name ?? "Unknown",
+      ownerTrusted: usersById.get(loan.ownerId)?.trustedLender ?? false,
       startDate: loan.startDate,
       endDate: loan.endDate,
       status: loan.status,
@@ -243,7 +244,7 @@ export const incomingRequests = query({
       .withIndex("by_owner", (q) => q.eq("ownerId", user._id))
       .order("desc")
       .take(MAX_LISTED_LOANS);
-    const { toolNames, userNames } = await loadNames(
+    const { toolNames, usersById } = await loadNames(
       ctx,
       loans,
       (loan) => loan.borrowerId,
@@ -253,7 +254,7 @@ export const incomingRequests = query({
     return loans.sort(byStatusThenNewest).map((loan) => ({
       _id: loan._id,
       toolName: toolNames.get(loan.toolId) ?? DELETED_TOOL_NAME,
-      borrowerName: userNames.get(loan.borrowerId) ?? "Unknown",
+      borrowerName: usersById.get(loan.borrowerId)?.name ?? "Unknown",
       startDate: loan.startDate,
       endDate: loan.endDate,
       status: loan.status,

@@ -1,9 +1,8 @@
 "use client";
 
-import { UserButton } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
-import Link from "next/link";
 import { useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
 import { IncomingRequests } from "@/components/loans/IncomingRequests";
 import { MyRequests } from "@/components/loans/MyRequests";
 import { AllTools } from "@/components/tools/AllTools";
@@ -40,19 +39,7 @@ export default function AppPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-6">
-      <header className="flex items-center justify-between gap-4">
-        <Link href="/" className="text-xl font-semibold tracking-tight">
-          LendLoop
-        </Link>
-        <div className="flex items-center gap-3">
-          {user && (
-            <span className="hidden text-sm text-zinc-600 sm:inline">
-              {user.name}
-            </span>
-          )}
-          <UserButton />
-        </div>
-      </header>
+      <AppHeader user={user} />
 
       {!user ? (
         <p className="text-sm text-zinc-500">Loading your account…</p>

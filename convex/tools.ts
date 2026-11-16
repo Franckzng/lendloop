@@ -147,8 +147,8 @@ export const listAll = query({
     const owners = await Promise.all(
       ownerIds.map((ownerId) => ctx.db.get("users", ownerId)),
     );
-    const ownerNames = new Map(
-      ownerIds.map((ownerId, index) => [ownerId, owners[index]?.name]),
+    const ownersById = new Map(
+      ownerIds.map((ownerId, index) => [ownerId, owners[index]]),
     );
 
     return tools.map((tool) => ({
@@ -158,7 +158,8 @@ export const listAll = query({
       condition: tool.condition,
       description: tool.description,
       // The owner's name only: their email is never sent to other users.
-      ownerName: ownerNames.get(tool.ownerId) ?? "Unknown",
+      ownerName: ownersById.get(tool.ownerId)?.name ?? "Unknown",
+      ownerTrusted: ownersById.get(tool.ownerId)?.trustedLender ?? false,
       isMine: tool.ownerId === user._id,
       // Dates only: who borrowed the tool is not shown to other users.
       ...(availability.get(tool._id) ?? NO_LOANS),
@@ -209,26 +210,38 @@ export const update = mutation({
   },
 });
 
+/**
+ * Deletes a tool. Shared by the owner's `remove` and the admin's
+ * `removeAnyListing`, so both follow the same rules: never while a loan is
+ * approved, and requests still waiting for an answer are declined.
+ * The caller is responsible for the access check.
+ */
+export async function deleteToolAndCloseRequests(
+  ctx: MutationCtx,
+  tool: Doc<"tools">,
+): Promise<void> {
+  const loans = await ctx.db
+    .query("loans")
+    .withIndex("by_tool", (q) => q.eq("toolId", tool._id))
+    .collect();
+
+  if (loans.some((loan) => loan.status === "approved")) {
+    throw new ConvexError(
+      "This tool has an approved loan. It must be marked as returned before it can be deleted.",
+    );
+  }
+  const pending = loans.filter((loan) => loan.status === "pending");
+  for (const loan of pending) {
+    await ctx.db.patch("loans", loan._id, { status: "declined" });
+    await notifyStatusChange(ctx, loan._id);
+  }
+  await ctx.db.delete("tools", tool._id);
+}
+
 export const remove = mutation({
   args: { toolId: v.id("tools") },
   handler: async (ctx, { toolId }) => {
     const tool = await requireOwnedTool(ctx, toolId);
-    const loans = await ctx.db
-      .query("loans")
-      .withIndex("by_tool", (q) => q.eq("toolId", tool._id))
-      .collect();
-
-    if (loans.some((loan) => loan.status === "approved")) {
-      throw new ConvexError(
-        "This tool has an approved loan. Mark it as returned before deleting.",
-      );
-    }
-    // Requests still waiting for an answer cannot be fulfilled any more.
-    const pending = loans.filter((loan) => loan.status === "pending");
-    for (const loan of pending) {
-      await ctx.db.patch("loans", loan._id, { status: "declined" });
-      await notifyStatusChange(ctx, loan._id);
-    }
-    await ctx.db.delete("tools", tool._id);
+    await deleteToolAndCloseRequests(ctx, tool);
   },
 });

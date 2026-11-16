@@ -30,6 +30,7 @@ export function MyRequests() {
           endDate={loan.endDate}
           status={loan.status}
           overdue={loan.overdue}
+          trusted={loan.ownerTrusted}
         />
       ))}
     </ul>
