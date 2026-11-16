@@ -23,3 +23,14 @@ export function localToday(): string {
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;
 }
+
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
+/** "Reminder sent today", "Reminder sent 1 day ago", "Reminder sent 3 days ago". */
+export function reminderLabel(sentAt: number, now: number): string {
+  const days = Math.max(0, Math.floor((now - sentAt) / DAY_IN_MS));
+  if (days === 0) {
+    return "Reminder sent today";
+  }
+  return `Reminder sent ${days} ${days === 1 ? "day" : "days"} ago`;
+}

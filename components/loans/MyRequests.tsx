@@ -30,6 +30,7 @@ export function MyRequests() {
           endDate={loan.endDate}
           status={loan.status}
           overdue={loan.overdue}
+          lastReminderAt={loan.lastReminderAt}
           trusted={loan.ownerTrusted}
         />
       ))}

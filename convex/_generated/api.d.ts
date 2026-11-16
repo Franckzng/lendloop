@@ -10,8 +10,10 @@
 
 import type * as admin from "../admin.js";
 import type * as dates from "../dates.js";
+import type * as http from "../http.js";
 import type * as loans from "../loans.js";
 import type * as notifications from "../notifications.js";
+import type * as reminders from "../reminders.js";
 import type * as signature from "../signature.js";
 import type * as toolOptions from "../toolOptions.js";
 import type * as tools from "../tools.js";
@@ -26,8 +28,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   dates: typeof dates;
+  http: typeof http;
   loans: typeof loans;
   notifications: typeof notifications;
+  reminders: typeof reminders;
   signature: typeof signature;
   toolOptions: typeof toolOptions;
   tools: typeof tools;

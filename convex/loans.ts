@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { addDays, isValidDay, rangesOverlap, todayUtc } from "./dates";
 import { notifyStatusChange } from "./notifications";
+import { lastReminderTimes } from "./reminders";
 import { getCurrentUser } from "./users";
 
 /** Upper bound on any loan list, so no query can grow without limit. */
@@ -198,6 +199,14 @@ function byStatusThenNewest(a: Doc<"loans">, b: Doc<"loans">): number {
   );
 }
 
+/** Reminders only exist for loans in progress, so only those are looked up. */
+async function loadReminderTimes(ctx: QueryCtx, loans: Doc<"loans">[]) {
+  return await lastReminderTimes(
+    ctx,
+    loans.filter((loan) => loan.status === "approved").map((loan) => loan._id),
+  );
+}
+
 /** Late when an approved loan is past its end date and not returned yet. */
 function isOverdue(loan: Doc<"loans">, today: string): boolean {
   return loan.status === "approved" && loan.endDate < today;
@@ -219,6 +228,7 @@ export const myRequests = query({
       (loan) => loan.ownerId,
     );
     const today = todayUtc();
+    const reminderTimes = await loadReminderTimes(ctx, loans);
 
     // Names only: no email and no user id of the other person.
     return loans.sort(byStatusThenNewest).map((loan) => ({
@@ -230,6 +240,7 @@ export const myRequests = query({
       endDate: loan.endDate,
       status: loan.status,
       overdue: isOverdue(loan, today),
+      lastReminderAt: reminderTimes.get(loan._id) ?? null,
     }));
   },
 });
@@ -250,6 +261,7 @@ export const incomingRequests = query({
       (loan) => loan.borrowerId,
     );
     const today = todayUtc();
+    const reminderTimes = await loadReminderTimes(ctx, loans);
 
     return loans.sort(byStatusThenNewest).map((loan) => ({
       _id: loan._id,
@@ -259,6 +271,7 @@ export const incomingRequests = query({
       endDate: loan.endDate,
       status: loan.status,
       overdue: isOverdue(loan, today),
+      lastReminderAt: reminderTimes.get(loan._id) ?? null,
     }));
   },
 });

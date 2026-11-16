@@ -1,7 +1,9 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import { TrustedBadge } from "@/components/TrustedBadge";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { formatDayRange } from "@/lib/dates";
+import { formatDayRange, reminderLabel } from "@/lib/dates";
 import { cardClass } from "@/lib/styles";
 import { StatusBadge } from "./StatusBadge";
 
@@ -15,6 +17,8 @@ type LoanCardProps = {
   overdue: boolean;
   /** True when the lender named in `counterpart` is a Trusted Lender. */
   trusted?: boolean;
+  /** When the latest overdue reminder was sent, if any. */
+  lastReminderAt?: number | null;
   children?: ReactNode;
 };
 
@@ -26,8 +30,11 @@ export function LoanCard({
   status,
   overdue,
   trusted = false,
+  lastReminderAt = null,
   children,
 }: LoanCardProps) {
+  const [now] = useState(Date.now);
+
   return (
     <li className={`${cardClass} flex flex-col gap-2`}>
       <div className="flex items-start justify-between gap-2">
@@ -39,6 +46,11 @@ export function LoanCard({
         {counterpart}
         {trusted && <TrustedBadge />}
       </p>
+      {lastReminderAt !== null && (
+        <p className="text-xs text-red-700">
+          {reminderLabel(lastReminderAt, now)}
+        </p>
+      )}
       {children}
     </li>
   );

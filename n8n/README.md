@@ -17,14 +17,24 @@ the owner account of your local instance.
 ## 2. Import the workflows
 
 ```bash
-docker compose cp n8n/workflows/request-notification.json n8n:/tmp/request-notification.json
-docker compose exec n8n n8n import:workflow --input=/tmp/request-notification.json
-docker compose exec n8n n8n publish:workflow --id=lendloopRequestNotif
+for name in error-handler request-notification overdue-reminders; do
+  docker compose cp n8n/workflows/$name.json n8n:/tmp/$name.json
+  docker compose exec n8n n8n import:workflow --input=/tmp/$name.json
+done
+for id in lendloopErrorHandler lendloopRequestNotif lendloopOverdueRemind; do
+  docker compose exec n8n n8n publish:workflow --id=$id
+done
 docker compose restart n8n
 ```
 
-You can also import the file from the n8n editor (menu → Import from file) and
-publish it there.
+You can also import the files from the n8n editor (menu → Import from file)
+and publish them there. Import `error-handler` first: the other two refer to it.
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `request-notification` | Webhook called by Convex | Verifies the signature, builds the notification |
+| `overdue-reminders` | Every day at 08:00 UTC | Reminds borrowers of overdue loans, reports back to Convex |
+| `error-handler` | Any failure of the two above | Records which workflow and node failed, and why |
 
 ## 3. Open a tunnel
 
@@ -49,7 +59,17 @@ npx convex env set N8N_WEBHOOK_SECRET <same value as LENDLOOP_WEBHOOK_SECRET>
 npx convex env set N8N_REQUEST_WEBHOOK_URL https://some-words.trycloudflare.com/webhook/lendloop/request-notification
 ```
 
-Without these two variables the app still works: notifications are skipped and
+The reminder workflow calls Convex the other way round. It needs the address
+of the Convex HTTP routes in `.env.n8n`:
+
+```
+LENDLOOP_CONVEX_SITE_URL=https://<your-deployment>.convex.site
+```
+
+This is `NEXT_PUBLIC_CONVEX_SITE_URL` from `.env.local`. Apply it with
+`docker compose up -d`. This direction does not need the tunnel.
+
+Without the two Convex variables the app still works: notifications are skipped and
 a warning is written to the Convex logs.
 
 ## How a notification travels
@@ -84,6 +104,37 @@ not retried, because the same request would be refused again. A delivery that
 fails for good is logged in Convex and recorded in the `automationEvents`
 table as `notification_failed`.
 
+## Overdue reminders (n8n → Convex)
+
+Once a day the `overdue-reminders` workflow:
+
+1. calls `GET /overdue-loans` on Convex. The answer lists approved loans past
+   their end date, with only `loanId`, `borrowerEmail`, `toolName`, `endDate`
+   and `reminderSentToday`;
+2. skips the loans already reminded today;
+3. builds the reminder for each remaining loan (mock, like the notification);
+4. calls `POST /reminder-status` with `{ loanId, idempotencyKey, status }`.
+
+Both routes require the same signature as above, checked by Convex this time:
+constant-time comparison and a 5 minute window. An unsigned call gets a `401`.
+
+### Idempotency
+
+`idempotencyKey` is `<loanId>:<YYYY-MM-DD>`, so there is at most one reminder
+per loan and per day. If the key is already stored, Convex answers `200` and
+writes nothing. Running the workflow twice, or a retry after a timeout, cannot
+create a duplicate. Convex also refuses a key that does not have this exact
+shape or does not match the loan.
+
+### Failures
+
+Both HTTP nodes have "Retry On Fail" enabled (3 tries, 2 seconds apart). If
+Convex is still unreachable, the execution fails and n8n starts the
+`error-handler` workflow, set as the error workflow of the other two. Its
+execution shows the failed workflow, the node and the error message, so a
+failure is never silent. n8n only starts error workflows for real runs
+(schedule or webhook), not for manual test runs from the editor.
+
 ## Try it by hand
 
 ```bash
@@ -101,4 +152,14 @@ curl -i -X POST http://localhost:5678/webhook/lendloop/request-notification \
 curl -i -X POST http://localhost:5678/webhook/lendloop/request-notification \
   -H 'Content-Type: application/json' \
   -H "X-LendLoop-Timestamp: $TS" -H "X-LendLoop-Signature: ${SIG/a/b}" --data-binary "$BODY"
+```
+
+A signed call to Convex, to list the overdue loans:
+
+```bash
+set -a; . ./.env.n8n; set +a
+TS=$(date +%s%3N)
+SIG=$(printf '%s.' "$TS" | openssl dgst -sha256 -hmac "$LENDLOOP_WEBHOOK_SECRET" -hex | awk '{print $NF}')
+curl -s "$LENDLOOP_CONVEX_SITE_URL/overdue-loans" \
+  -H "X-LendLoop-Timestamp: $TS" -H "X-LendLoop-Signature: $SIG"
 ```

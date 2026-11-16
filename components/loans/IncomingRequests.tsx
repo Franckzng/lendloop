@@ -26,6 +26,7 @@ function IncomingLoanCard({ loan }: { loan: IncomingLoan }) {
       endDate={loan.endDate}
       status={loan.status}
       overdue={loan.overdue}
+      lastReminderAt={loan.lastReminderAt}
     >
       {error !== null && (
         <p role="alert" className="text-sm text-red-700">

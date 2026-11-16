@@ -1,0 +1,47 @@
+{
+  "name": "error-handler",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "b2e1d8c3-0011-4d2f-8b20-000000000011",
+      "name": "When a workflow fails",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns a failed execution into one readable record, kept in this\n// workflow's execution list. Add an email or chat node after this one to be\n// alerted as well.\nconst { workflow = {}, execution = {}, trigger = {} } = $input.first().json;\n\nconst failure = {\n  workflow: workflow.name ?? 'unknown workflow',\n  node: execution.lastNodeExecuted ?? trigger.error?.node?.name ?? 'unknown node',\n  message: execution.error?.message ?? trigger.error?.message ?? 'unknown error',\n  executionId: execution.id ?? null,\n  executionUrl: execution.url ?? null,\n  failedAt: new Date().toISOString(),\n};\n\nreturn [{ json: failure }];\n"
+      },
+      "id": "b2e1d8c3-0012-4d2f-8b20-000000000012",
+      "name": "Log failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When a workflow fails": {
+      "main": [
+        [
+          {
+            "node": "Log failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "id": "lendloopErrorHandler"
+}
